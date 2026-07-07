@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "SportPesaTz",
+  "version": "1.0",
+  "description": "@sasadjak Sportpesa",
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "webNavigation",
+    "storage",
+    "webRequest",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://sportpesa.co.tz/*",
+    "https://pixel.sussads.io/*",
+    "https://mines.turbogg4u.online/*"
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open SportPesa Market Refresh"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://sportpesa.co.tz/*"],
+      "js": ["content-bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://mines.turbogg4u.online/*"],
+      "js": ["content-bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}

@@ -1,0 +1,493 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SportPesa Market Refresh</title>
+  <style>
+    body {
+      width: 300px;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    
+    h2 {
+      color: #333;
+      margin-top: 0;
+    }
+    
+    #refreshBtn {
+      width: 100%;
+      padding: 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    
+    #refreshBtn:hover {
+      background-color: #45a049;
+    }
+    
+    #refreshBtn:active {
+      background-color: #3d8b40;
+    }
+    
+    .odd-card {
+      margin-bottom: 10px;
+      padding: 8px;
+      background: white;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border: 1px solid #ddd;
+      height: auto;
+      min-height: 100px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .loading {
+      color: #2196F3;
+    }
+    
+    .success {
+      color: #4CAF50;
+    }
+    
+    .error {
+      color: #f44336;
+    }
+    
+    .odd-card {
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 12px;
+      margin-bottom: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .odd-card-header {
+      font-weight: bold;
+      color: #2196F3;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    
+    .odd-card-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 4px 0;
+      font-size: 13px;
+    }
+    
+    .odd-card-label {
+      color: #666;
+      font-weight: 500;
+    }
+    
+    .odd-card-value {
+      color: #333;
+      font-weight: bold;
+    }
+    
+    .quota-value {
+      color: #4CAF50;
+      font-size: 15px;
+      font-weight: bold;
+    }
+    
+    .timestamp {
+      color: #999;
+      font-size: 11px;
+      margin-top: 6px;
+      text-align: right;
+    }
+    
+    .slot-container {
+      padding: 15px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      background: #f9f9f9;
+      margin-bottom: 15px;
+    }
+    
+    .slot-container.recording {
+      border-color: #28a745;
+      background: #f0fff4;
+    }
+    
+    .slot-container.saved {
+      border-color: #0066cc;
+      background: #f0f8ff;
+    }
+    
+    .slot-status {
+      color: #999;
+      font-size: 14px;
+      font-weight: normal;
+    }
+    
+    .slot-container.recording .slot-status {
+      color: #28a745;
+      font-weight: bold;
+    }
+    
+    .slot-container.saved .slot-status {
+      color: #0066cc;
+      font-weight: bold;
+    }
+    
+    .new-btn {
+      padding: 6px 12px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    
+    .new-btn:hover {
+      background: #218838;
+    }
+    
+    .save-btn {
+      padding: 6px 12px;
+      background: #0066cc;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    
+    .save-btn:hover {
+      background: #0056b3;
+    }
+    
+    .slot-content {
+      min-height: 50px;
+    }
+    
+    /* Timer styles */
+    .timer-section {
+      margin: 15px 0;
+    }
+    
+    .timer-label {
+      text-align: center;
+      margin-bottom: 10px;
+      font-weight: bold;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    #timerContainer {
+      position: relative;
+      width: 100%;
+      height: 25px;
+      background-color: #e0e0e0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #ddd;
+    }
+    
+    #timerBar {
+      width: 0%;
+      height: 100%;
+      background-color: #4CAF50;
+      transition: width 0.1s ease;
+    }
+    
+    #timerCounter {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-weight: bold;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    /* Timer input styles */
+    .timer-input-group {
+      margin: 15px 0;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      background: #f9f9f9;
+    }
+    
+    .timer-input-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: bold;
+      color: #333;
+      font-size: 13px;
+    }
+    
+    .timer-input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .timer-input-row input {
+      flex: 1;
+      padding: 8px;
+      font-size: 14px;
+      background-color: #fff;
+      color: #333;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      font-weight: bold;
+    }
+    
+    .timer-save-btn {
+      padding: 8px 15px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    
+    .timer-save-btn:hover {
+      background-color: #45a049;
+    }
+    
+    .clear-slot-btn {
+      padding: 6px 12px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    
+    .clear-slot-btn:hover {
+      background: #c82333;
+    }
+    
+    body {
+      margin: 0;
+      padding: 5px;
+    }
+    
+    /* Popup for bet response */
+    #betPopupOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    
+    #betPopup {
+      background: #ffffff;
+      border-radius: 8px;
+      padding: 12px;
+      width: 260px;
+      max-height: 80vh;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      font-size: 11px;
+    }
+    
+    #betPopupHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    #betPopupTitle {
+      font-weight: bold;
+      font-size: 12px;
+    }
+    
+    #betPopupClose {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+    }
+    
+    #betPopupBody {
+      overflow-y: auto;
+      max-height: 60vh;
+      background: #f8f9fa;
+      border-radius: 4px;
+      padding: 6px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    /* Control buttons */
+    .control-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .control-btn {
+      padding: 15px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.3s, transform 0.1s;
+    }
+    
+    .control-btn:hover {
+      opacity: 0.9;
+    }
+    
+    .control-btn:active {
+      transform: scale(0.98);
+    }
+    
+    #startBtn {
+      background-color: #28a745;
+      color: white;
+    }
+    
+    #stopBtn {
+      background-color: #dc3545;
+      color: white;
+    }
+    
+    #golBtn {
+      background-color: #007bff;
+      color: white;
+    }
+    
+    #prematchBtn {
+      background-color: #6f42c1;
+      color: white;
+    }
+    
+    #slotBtn {
+      background-color: #ffc107;
+      color: #000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Control Buttons -->
+  <div class="control-buttons">
+    <button id="startBtn" class="control-btn">🚀 START</button>
+    <button id="stopBtn" class="control-btn">⏹️ STOP</button>
+    <button id="golBtn" class="control-btn">⚽ GOL</button>
+    <button id="proveriBtn" class="control-btn" style="background-color: #17a2b8;">🔍 PROVERI</button>
+    <button id="prematchBtn" class="control-btn">PREMATCH</button>
+    <button id="slotBtn" class="control-btn" style="display: none;">🎰 SLOT</button>
+  </div>
+  
+  <hr style="margin: 20px 0; border: 1px solid #ddd;">
+  
+  <!-- PREMATCH stake + saved match -->
+  <div class="timer-input-group">
+    <label>PREMATCH stake:</label>
+    <div class="timer-input-row">
+      <input type="number" id="prematchStakeInput" min="1" value="500">
+      <button id="savePrematchButton" class="timer-save-btn">Save</button>
+    </div>
+    <div id="prematchMatchName" style="margin-top: 6px; font-size: 10px; color: #666; line-height: 1.2;">Mec: -</div>
+  </div>
+  
+  <!-- Timer Input -->
+  <div class="timer-input-group">
+    <label>⏱️ Cycle interval (ms):</label>
+    <div class="timer-input-row">
+      <input type="number" id="autoCheckInterval" min="1000" value="13000">
+      <button id="saveIntervalButton" class="timer-save-btn">Save</button>
+    </div>
+  </div>
+  
+  <!-- Visual Timer -->
+  <div class="timer-section">
+    <div class="timer-label">⏳ Next cycle in:</div>
+    <div id="timerContainer">
+      <div id="timerBar"></div>
+      <span id="timerCounter">0.00s</span>
+    </div>
+  </div>
+  
+  <!-- Bet Slip -->
+  <div id="mainSlot" class="slot-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0;">Bet Slip - <span class="slot-status">Idle</span></h3>
+      <div style="display: flex; gap: 5px;">
+        <button class="new-btn" data-slot="1">New</button>
+        <button class="save-btn" data-slot="1">Save</button>
+        <button class="clear-slot-btn" data-slot="1">Clear</button>
+      </div>
+    </div>
+    <div class="slot-content"></div>
+    <div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+      <label style="font-weight: bold; font-size: 12px;">Stake:</label>
+      <input type="number" id="stake1" placeholder="Enter stake" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+    </div>
+  </div>
+  
+  <!-- Bet Status Box -->
+  <div id="betStatusBox" style="padding: 15px; background: #f8f9fa; border: 2px solid #007bff; border-radius: 8px; margin-bottom: 20px;">
+    <h3 style="margin: 0 0 10px 0; color: #007bff;">📊 Bet Status</h3>
+    <div id="betStatusMessages" style="font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; background: white; padding: 10px; border-radius: 4px; border: 1px solid #ddd;">
+      <p style="color: #999; margin: 0;">Waiting for bet...</p>
+    </div>
+  </div>
+  
+  
+  <hr style="margin: 20px 0; border: 1px solid #ddd;">
+  
+  <div style="margin: 20px 0; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <h3 style="margin: 0;">🍪 Captured Cookies</h3>
+      <button id="captureCookiesBtn" style="padding: 6px 12px; background: #ffc107; color: #000; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Capture Now</button>
+    </div>
+    <div id="cookiesDisplay" style="font-size: 12px; color: #666;">
+      <p>Waiting for /api/users/profile request...</p>
+    </div>
+  </div>
+  
+  <h2 style="text-align: center; color: #666; margin-top: 20px;">SportPesa Market</h2>
+  
+  <!-- Bet response popup -->
+  <div id="betPopupOverlay">
+    <div id="betPopup">
+      <div id="betPopupHeader">
+        <span id="betPopupTitle">Bet Response</span>
+        <button id="betPopupClose">✕</button>
+      </div>
+      <div id="betPopupBody"></div>
+    </div>
+  </div>
+  
+  <script src="sidepanel.js"></script>
+</body>
+</html>
