@@ -1407,7 +1407,7 @@ setTimeout(autoCheckCashout, 2000);
 // ============================================
 // PREMATCH - replay a manually captured prematch ticket (API-only, isolated from live)
 // ============================================
-let prematchStakeAmount = 500;
+let prematchStakeAmount = 100;
 
 function getNormalizedPrematchStake(value) {
   const parsed = parseInt(value, 10);
@@ -1428,7 +1428,7 @@ function setPrematchMatchNameDisplay(name) {
 
 chrome.storage.local.get(['prematchStakeAmount', 'prematchSavedName'], (result) => {
   const storedStake = getNormalizedPrematchStake(result.prematchStakeAmount);
-  prematchStakeAmount = storedStake || 500;
+  prematchStakeAmount = storedStake || 100;
   if (prematchStakeInputEl) prematchStakeInputEl.value = String(prematchStakeAmount);
   if (result.prematchSavedName) setPrematchMatchNameDisplay(result.prematchSavedName);
 });
@@ -1569,7 +1569,7 @@ if (prematchButtonEl) {
         addBetStatusMessage('ne odigran prematch', 'error');
         return;
       }
-      const stake = getNormalizedPrematchStake(prematchStakeAmount) || 500;
+      const stake = getNormalizedPrematchStake(prematchStakeAmount) || 100;
       const wrapped = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         world: 'MAIN',
