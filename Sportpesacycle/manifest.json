@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "SportPesa",
+  "version": "1.0",
+  "description": "Side panel extension for refreshing SportPesa market data",
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "webNavigation",
+    "storage",
+    "webRequest",
+    "cookies"
+  ],
+  "host_permissions": [
+    "https://www.ke.sportpesa.com/*",
+    "https://pixel.sussads.io/*",
+    "https://mines.turbogg4u.online/*"
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open SportPesa Market Refresh"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.ke.sportpesa.com/*"],
+      "js": ["content-bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://mines.turbogg4u.online/*"],
+      "js": ["content-bridge.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}
