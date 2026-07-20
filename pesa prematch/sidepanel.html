@@ -409,25 +409,6 @@
   
   <hr style="margin: 20px 0; border: 1px solid #ddd;">
   
-  <!-- PREMATCH stake + saved match -->
-  <div class="timer-input-group">
-    <label>PREMATCH stake:</label>
-    <div class="timer-input-row">
-      <input type="number" id="prematchStakeInput" min="1" value="500">
-      <button id="savePrematchButton" class="timer-save-btn">Save</button>
-    </div>
-    <div id="prematchMatchName" style="margin-top: 6px; font-size: 10px; color: #666; line-height: 1.2;">Mec: -</div>
-  </div>
-  
-  <!-- Timer Input -->
-  <div class="timer-input-group">
-    <label>⏱️ Cycle interval (ms):</label>
-    <div class="timer-input-row">
-      <input type="number" id="autoCheckInterval" min="1000" value="13000">
-      <button id="saveIntervalButton" class="timer-save-btn">Save</button>
-    </div>
-  </div>
-  
   <!-- Visual Timer -->
   <div class="timer-section">
     <div class="timer-label">⏳ Next cycle in:</div>
@@ -460,6 +441,25 @@
     <div id="betStatusMessages" style="font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto; background: white; padding: 10px; border-radius: 4px; border: 1px solid #ddd;">
       <p style="color: #999; margin: 0;">Waiting for bet...</p>
     </div>
+  </div>
+  
+  <!-- Timer Input -->
+  <div class="timer-input-group">
+    <label>⏱️ Cycle interval (ms):</label>
+    <div class="timer-input-row">
+      <input type="number" id="autoCheckInterval" min="1000" value="13000">
+      <button id="saveIntervalButton" class="timer-save-btn">Save</button>
+    </div>
+  </div>
+  
+  <!-- PREMATCH stake + saved match -->
+  <div class="timer-input-group">
+    <label>PREMATCH stake:</label>
+    <div class="timer-input-row">
+      <input type="number" id="prematchStakeInput" min="1" value="500">
+      <button id="savePrematchButton" class="timer-save-btn">Save</button>
+    </div>
+    <div id="prematchMatchName" style="margin-top: 6px; font-size: 10px; color: #666; line-height: 1.2;">Mec: -</div>
   </div>
   
   
