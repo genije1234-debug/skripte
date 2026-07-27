@@ -118,6 +118,10 @@ window.addEventListener('message', (event) => {
 // Listen for cashout command from background/sidepanel
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'SEND_CASHOUT') {
+    if (window !== window.top) {
+      sendResponse({ success: true, skipped: 'non-top-frame' });
+      return true;
+    }
     console.log(' Forwarding cashout command to page:', message.data);
     // Forward to MAIN world
     window.postMessage({

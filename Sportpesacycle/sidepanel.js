@@ -309,7 +309,7 @@ function applyGolButtonLockState() {
   golBtn.style.cursor = isLocked ? 'not-allowed' : 'pointer';
 
   if (golLockedByTimer) {
-    golBtn.title = 'GOL unlocks when timer is under 10 seconds';
+    golBtn.title = 'GOL unlocks when timer is under 8 seconds';
   } else if (golLockedBySuspendedError) {
     golBtn.title = 'GOL locked due to suspended market error';
   } else if (golLockedByMarket) {
@@ -380,7 +380,7 @@ document.getElementById('golBtn').addEventListener('click', async () => {
     });
     
     console.log(`📤 Cashout command sent for bet ${cashoutData.betId}`);
-    addBetStatusMessage(`✅ Cashout sent: ${cashoutData.totalValueOperation} KES`, 'success');
+    addBetStatusMessage(`Cashout sent: ${cashoutData.totalValueOperation} KES`, 'info');
     
     // AFTER cashout is sent: stop the cycle timer
     if (cycleTimeoutId) {
@@ -1117,7 +1117,7 @@ function updateTimerDisplay() {
 
   timerBar.style.width = `${progress}%`;
   timerCounter.textContent = `${(remaining / 1000).toFixed(2)}s`;
-  setGolButtonLocked(isAutoSending && remaining > 10000);
+  setGolButtonLocked(isAutoSending && remaining > 8000);
 
   if (remaining <= 0 && timerIntervalId) {
     clearInterval(timerIntervalId);

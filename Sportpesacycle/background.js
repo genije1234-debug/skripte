@@ -1017,11 +1017,12 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
           };
           
           // Listen for cashout commands from content script
-          window.addEventListener('message', (event) => {
-            if (event.data.type === 'SEND_CASHOUT') {
-              console.log('💰 Received cashout command:', event.data.data);
-              const { betId, cashoutType, valueOperation, valueOperationTax, totalValueOperation, family } = event.data.data;
-              
+          const CASHOUT_MAX_ATTEMPTS = 5;
+          const CASHOUT_REQUEST_TIMEOUT_MS = 500;
+          let cashoutInProgress = false;
+          
+          function sendCashoutAttempt(payload, betId, attempt) {
+            return new Promise((resolve) => {
               const xhr = new XMLHttpRequest();
               xhr.open("POST", "https://www.ke.sportpesa.com/api/bets/cashout", true);
               xhr.setRequestHeader("accept", "application/json, text/plain, */*");
@@ -1029,29 +1030,90 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
               xhr.setRequestHeader("content-type", "application/json;charset=UTF-8");
               xhr.setRequestHeader("x-app-timezone", "Africa/Nairobi");
               xhr.setRequestHeader("x-requested-with", "XMLHttpRequest");
+              xhr.timeout = CASHOUT_REQUEST_TIMEOUT_MS;
+              
+              const finish = (result) => {
+                resolve(result);
+              };
               
               xhr.onload = function() {
-                console.log('💰 Cashout response status:', xhr.status);
+                console.log(`💰 Cashout response status (${attempt}/${CASHOUT_MAX_ATTEMPTS}):`, xhr.status);
                 if (xhr.status >= 200 && xhr.status < 300) {
-                  const data = JSON.parse(xhr.responseText);
-                  console.log('✅ Cashout successful:', data);
-                  window.postMessage({ type: 'CASHOUT_RESPONSE', data: { success: true, data: data, betId: betId } }, '*');
+                  let data = null;
+                  try {
+                    data = JSON.parse(xhr.responseText);
+                  } catch (e) {
+                    // Keep success even if response body is not valid JSON.
+                  }
+                  finish({ success: true, data: data, betId: betId, attempts: attempt });
                 } else {
-                  console.log('❌ Cashout failed:', xhr.status);
-                  window.postMessage({ type: 'CASHOUT_RESPONSE', data: { success: false, error: `HTTP ${xhr.status}`, betId: betId } }, '*');
+                  finish({ success: false, error: `HTTP ${xhr.status}`, betId: betId, attempts: attempt });
                 }
               };
               
               xhr.onerror = () => {
-                console.log('❌ Cashout network error');
-                window.postMessage({ type: 'CASHOUT_RESPONSE', data: { success: false, error: 'Network error', betId: betId } }, '*');
+                finish({ success: false, error: 'Network error', betId: betId, attempts: attempt });
               };
               
-              const payload = `{"betId":"${betId}","details":{"cashoutType":"${cashoutType}","valueOperation":${valueOperation},"valueOperationTax":${valueOperationTax},"totalValueOperation":${totalValueOperation},"betId":"${betId}","family":"${family}"}}`;
-              console.log('📤 Sending cashout:', payload);
+              xhr.ontimeout = () => {
+                finish({ success: false, error: 'Timeout', betId: betId, attempts: attempt });
+              };
+              
               xhr.send(payload);
+            });
+          }
+          
+          async function runCashoutWithRetry(cashoutCommandData) {
+            if (!cashoutCommandData) return;
+            
+            if (cashoutInProgress) {
+              console.log('⚠️ Cashout already in progress, duplicate GOL ignored');
+              return;
             }
-          });
+            
+            cashoutInProgress = true;
+            try {
+              const { betId, cashoutType, valueOperation, valueOperationTax, totalValueOperation, family } = cashoutCommandData;
+              const payload = `{"betId":"${betId}","details":{"cashoutType":"${cashoutType}","valueOperation":${valueOperation},"valueOperationTax":${valueOperationTax},"totalValueOperation":${totalValueOperation},"betId":"${betId}","family":"${family}"}}`;
+              let lastError = 'Unknown error';
+              
+              for (let attempt = 1; attempt <= CASHOUT_MAX_ATTEMPTS; attempt++) {
+                console.log(`📤 Sending cashout attempt ${attempt}/${CASHOUT_MAX_ATTEMPTS}:`, payload);
+                const attemptResult = await sendCashoutAttempt(payload, betId, attempt);
+                
+                if (attemptResult.success) {
+                  console.log(`✅ Cashout successful on attempt ${attempt}/${CASHOUT_MAX_ATTEMPTS}`);
+                  window.postMessage({ type: 'CASHOUT_RESPONSE', data: attemptResult }, '*');
+                  return;
+                }
+                
+                lastError = attemptResult.error || 'Unknown error';
+                console.log(`❌ Cashout attempt ${attempt}/${CASHOUT_MAX_ATTEMPTS} failed:`, lastError);
+                // No pause by request: failed attempt immediately continues to next attempt.
+              }
+              
+              console.log(`❌ Cashout failed after ${CASHOUT_MAX_ATTEMPTS} attempts`);
+              window.postMessage({
+                type: 'CASHOUT_RESPONSE',
+                data: {
+                  success: false,
+                  error: lastError,
+                  betId: cashoutCommandData.betId,
+                  attempts: CASHOUT_MAX_ATTEMPTS
+                }
+              }, '*');
+            } finally {
+              cashoutInProgress = false;
+            }
+          }
+          
+          if (window === window.top) {
+            window.addEventListener('message', (event) => {
+              if (!event || !event.data || event.data.type !== 'SEND_CASHOUT') return;
+              console.log('💰 Received cashout command:', event.data.data);
+              runCashoutWithRetry(event.data.data);
+            });
+          }
           
           console.log('✅ XHR & Fetch Interceptor + Cashout Listener ACTIVE for SportPesa');
         }
