@@ -1,6 +1,71 @@
 // Global flag for auto-sending control
 let isAutoSending = false;
 let cycleTimeoutId = null;
+const STAKE_BALANCE_OFFSET_KES = 10;
+const stakeInputEl = document.getElementById('stake1');
+const liveBalanceValueEl = document.getElementById('liveBalanceValue');
+const liveBalanceUpdatedEl = document.getElementById('liveBalanceUpdated');
+
+function toFiniteAmount(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = value.replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function formatAmount(value) {
+  const normalized = Number(value);
+  if (!Number.isFinite(normalized)) return 'N/A';
+  return Number.isInteger(normalized) ? String(normalized) : normalized.toFixed(2);
+}
+
+function updateBalanceDisplay(balance, timestamp) {
+  if (liveBalanceValueEl) {
+    liveBalanceValueEl.textContent = `${formatAmount(balance)} KES`;
+  }
+
+  if (liveBalanceUpdatedEl) {
+    const stamp = timestamp ? new Date(timestamp) : null;
+    const text = stamp && !Number.isNaN(stamp.getTime())
+      ? stamp.toLocaleTimeString()
+      : '--:--:--';
+    liveBalanceUpdatedEl.textContent = text;
+  }
+}
+
+function applyStakeFromBalance(balance, timestamp) {
+  const normalizedBalance = toFiniteAmount(balance);
+  if (normalizedBalance === null) return false;
+
+  const nextStake = Number((normalizedBalance + STAKE_BALANCE_OFFSET_KES).toFixed(2));
+  if (stakeInputEl) {
+    stakeInputEl.value = String(nextStake);
+  }
+
+  updateBalanceDisplay(normalizedBalance, timestamp);
+  return true;
+}
+
+function requestWalletRefresh(reason = 'sidepanel-manual') {
+  chrome.runtime.sendMessage({ type: 'REQUEST_WALLET_REFRESH', reason }, () => {
+    if (chrome.runtime.lastError) {
+      console.log('⚠️ Wallet refresh request failed:', chrome.runtime.lastError.message);
+    }
+  });
+}
+
+function syncStakeFromStoredWallet() {
+  chrome.storage.local.get(['lastWalletBalance', 'lastWalletStatusTimestamp'], (result) => {
+    const applied = applyStakeFromBalance(result.lastWalletBalance, result.lastWalletStatusTimestamp);
+    if (!applied && liveBalanceValueEl) {
+      liveBalanceValueEl.textContent = 'N/A';
+    }
+  });
+}
 
 // Function to add message to bet status box
 function addBetStatusMessage(message, type = 'info') {
@@ -657,6 +722,11 @@ function loadCookies() {
 // Load cookies on startup
 loadCookies();
 
+// Wallet sync on startup + periodic refresh every 5 minutes.
+syncStakeFromStoredWallet();
+requestWalletRefresh('sidepanel-startup');
+setInterval(() => requestWalletRefresh('sidepanel-interval-5m'), 300000);
+
 // Manual cookie capture button
 document.getElementById('captureCookiesBtn').addEventListener('click', async () => {
   // Get active tab
@@ -700,6 +770,13 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
   // Reload cookies if captured
   if (changes.capturedCookies) {
     loadCookies();
+  }
+
+  // Wallet updates: always keep stake at balance + 10 KES.
+  if (changes.lastWalletBalance || changes.lastWalletStatusTimestamp) {
+    chrome.storage.local.get(['lastWalletBalance', 'lastWalletStatusTimestamp'], (result) => {
+      applyStakeFromBalance(result.lastWalletBalance, result.lastWalletStatusTimestamp);
+    });
   }
   
   // Handle cashout response
