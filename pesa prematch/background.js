@@ -3,6 +3,76 @@ chrome.action.onClicked.addListener((tab) => {
   chrome.sidePanel.open({ windowId: tab.windowId });
 });
 
+let walletPollInProgress = false;
+
+function toFiniteAmount(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const normalized = value.replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function getByPath(obj, path) {
+  let current = obj;
+  for (const key of path) {
+    if (!current || typeof current !== 'object' || !(key in current)) return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
+function extractWalletBalanceFromPayload(payload) {
+  const directScalar = toFiniteAmount(payload);
+  if (directScalar !== null) return directScalar;
+  if (!payload || typeof payload !== 'object') return null;
+
+  const preferredPaths = [
+    ['availableBalance'],
+    ['walletBalance'],
+    ['balance'],
+    ['amount'],
+    ['data', 'availableBalance'],
+    ['data', 'walletBalance'],
+    ['data', 'balance'],
+    ['data', 'amount'],
+    ['wallet', 'availableBalance'],
+    ['wallet', 'balance'],
+    ['balances', 'available'],
+    ['balances', 'balance']
+  ];
+
+  for (const path of preferredPaths) {
+    const numeric = toFiniteAmount(getByPath(payload, path));
+    if (numeric !== null) return numeric;
+  }
+
+  const queue = [payload];
+  const seen = new Set();
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+
+    for (const [key, value] of Object.entries(node)) {
+      if (/balance|available|wallet|amount/i.test(key)) {
+        const numeric = toFiniteAmount(value);
+        if (numeric !== null) return numeric;
+      }
+
+      if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    }
+  }
+
+  return null;
+}
+
 // Listen for messages from content-bridge
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Handle DOM selections - store ALL found selections
@@ -246,6 +316,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       lastBetResponse: message.data,
       lastBetTimestamp: Date.now()
     });
+
+    pollWalletBalance('bet-response');
     
     return true;
   }
@@ -273,11 +345,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // Handle wallet balance status forwarded from content-bridge
   if (message.type === 'WALLET_BALANCE') {
-    const { status, timestamp } = message.data || {};
-    chrome.storage.local.set({
+    const { status, timestamp, balance, data, source, error } = message.data || {};
+    const balanceFromMessage = toFiniteAmount(balance);
+    const balanceFromPayload = extractWalletBalanceFromPayload(data);
+    const resolvedBalance = balanceFromMessage !== null ? balanceFromMessage : balanceFromPayload;
+
+    const update = {
       lastWalletStatus: status,
-      lastWalletStatusTimestamp: timestamp || new Date().toISOString()
-    });
+      lastWalletStatusTimestamp: timestamp || new Date().toISOString(),
+      lastWalletSource: source || 'bridge',
+      lastWalletError: error || null
+    };
+
+    if (resolvedBalance !== null) {
+      update.lastWalletBalance = resolvedBalance;
+    }
+
+    if (data !== undefined) {
+      update.lastWalletPayload = data;
+    }
+
+    chrome.storage.local.set(update);
+    return true;
+  }
+
+  // Sidepanel request: refresh wallet balance now.
+  if (message.type === 'REQUEST_WALLET_REFRESH') {
+    pollWalletBalance(message.reason || 'manual');
+    sendResponse({ success: true });
     return true;
   }
   
@@ -382,31 +477,84 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       lastCashoutResponse: message.data,
       cashoutTimestamp: Date.now()
     });
+
+    pollWalletBalance('cashout-response');
     
     return true;
   }
 });
 
 // ============================================
-// Periodic wallet balance polling (every 10s)
+// Wallet balance polling + normalization
 // ============================================
 
-async function pollWalletBalance() {
+async function pollWalletBalance(source = 'interval-5m') {
+  if (walletPollInProgress) {
+    return;
+  }
+
+  walletPollInProgress = true;
   try {
-    // Find an open SportPesa tab
+    // Find an open SportPesa Tanzania tab.
     const tabs = await chrome.tabs.query({ url: '*://sportpesa.co.tz/*' });
     if (!tabs || tabs.length === 0) {
-      return; // No SportPesa tab, skip
+      return;
     }
 
     const tabId = tabs[0].id;
-
-    await chrome.scripting.executeScript({
+    const wrapped = await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
-      func: () => {
+      func: async () => {
+        const toFinite = (value) => {
+          if (typeof value === 'number' && Number.isFinite(value)) return value;
+          if (typeof value === 'string') {
+            const normalized = value.replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
+            if (!normalized) return null;
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : null;
+          }
+          return null;
+        };
+
+        const extractBalance = (payload) => {
+          const directScalar = toFinite(payload);
+          if (directScalar !== null) return directScalar;
+          if (!payload || typeof payload !== 'object') return null;
+
+          const preferredKeys = [
+            'availableBalance',
+            'walletBalance',
+            'balance',
+            'amount'
+          ];
+
+          for (const key of preferredKeys) {
+            const direct = toFinite(payload[key]);
+            if (direct !== null) return direct;
+          }
+
+          const queue = [payload];
+          const seen = new Set();
+          while (queue.length > 0) {
+            const node = queue.shift();
+            if (!node || typeof node !== 'object' || seen.has(node)) continue;
+            seen.add(node);
+
+            for (const [key, value] of Object.entries(node)) {
+              if (/balance|available|wallet|amount/i.test(key)) {
+                const numeric = toFinite(value);
+                if (numeric !== null) return numeric;
+              }
+              if (value && typeof value === 'object') queue.push(value);
+            }
+          }
+
+          return null;
+        };
+
         try {
-          fetch('https://sportpesa.co.tz/api/wallets/balance', {
+          const res = await fetch('https://sportpesa.co.tz/api/wallets/balance', {
             method: 'GET',
             headers: {
               'accept': 'application/json, text/plain, */*',
@@ -417,62 +565,64 @@ async function pollWalletBalance() {
               'sec-fetch-dest': 'empty',
               'sec-fetch-mode': 'cors',
               'sec-fetch-site': 'same-origin',
-              'x-app-timezone': 'Africa/Nairobi',
+              'x-app-timezone': 'Africa/Dar_es_Salaam',
               'x-requested-with': 'XMLHttpRequest'
             },
             credentials: 'include'
-          })
-            .then(res => {
-              const now = new Date();
-              const timeStr = now.toLocaleTimeString(); // HH:MM:SS prema locale
+          });
 
-              // Osnovni log sa vremenom
-              console.log(`[${timeStr}] 💰 Wallet balance HTTP status:`, res.status);
+          const data = await res.json().catch(() => null);
+          const balance = extractBalance(data);
 
-              // "Lampica" u konzoli: zelena za 200, crvena za 402
-              if (res.status === 200) {
-                console.log('%c● BALANCE OK%c  ' + timeStr, 'color: #28a745; font-size:16px;', 'color: #999; font-size:11px;');
-              } else if (res.status === 402) {
-                console.log('%c● BALANCE 402%c  ' + timeStr, 'color: #dc3545; font-size:16px;', 'color: #999; font-size:11px;');
-              }
-
-              // Pošalji status ekstenziji kroz CustomEvent
-              try {
-                document.dispatchEvent(new CustomEvent('sportpesa_wallet_balance', {
-                  detail: {
-                    status: res.status,
-                    timestamp: new Date().toISOString()
-                  },
-                  bubbles: true
-                }));
-              } catch (e) {
-                console.log('⚠️ Failed to dispatch wallet balance event:', e);
-              }
-
-              return res.json().catch(() => null);
-            })
-            .then(data => {
-              if (data) {
-                console.log('💰 Wallet balance response:', data);
-              } else {
-                console.log('⚠️ Wallet balance: empty or non-JSON response');
-              }
-            })
-            .catch(err => {
-              console.log('❌ Wallet balance fetch error:', err);
-            });
-        } catch (e) {
-          console.log('❌ Wallet balance polling exception:', e);
+          return {
+            status: res.status,
+            timestamp: new Date().toISOString(),
+            balance: balance,
+            data: data,
+            error: null
+          };
+        } catch (error) {
+          return {
+            status: 0,
+            timestamp: new Date().toISOString(),
+            balance: null,
+            data: null,
+            error: error && error.message ? error.message : 'Failed to fetch'
+          };
         }
       }
     });
+
+    const result = wrapped && wrapped[0] ? wrapped[0].result : null;
+    if (!result) return;
+
+    const normalizedBalance = toFiniteAmount(result.balance);
+    const storageUpdate = {
+      lastWalletStatus: result.status,
+      lastWalletStatusTimestamp: result.timestamp || new Date().toISOString(),
+      lastWalletSource: source,
+      lastWalletError: result.error || null
+    };
+
+    if (normalizedBalance !== null) {
+      storageUpdate.lastWalletBalance = normalizedBalance;
+    }
+
+    if (result.data !== undefined) {
+      storageUpdate.lastWalletPayload = result.data;
+    }
+
+    chrome.storage.local.set(storageUpdate);
   } catch (e) {
-    console.log('❌ Failed to schedule wallet polling:', e);
+    console.log('❌ Failed to poll wallet balance:', e);
+  } finally {
+    walletPollInProgress = false;
   }
 }
 
-// Wallet balance polling disabled
-// setInterval(pollWalletBalance, 5000);
+// Refresh wallet in background on startup and every 5 minutes.
+setTimeout(() => pollWalletBalance('startup'), 2000);
+setInterval(() => pollWalletBalance('interval-5m'), 300000);
 
 // Track injected tabs
 const injectedTabs = new Set();
