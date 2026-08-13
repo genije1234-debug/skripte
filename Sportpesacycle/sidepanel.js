@@ -2,9 +2,11 @@
 let isAutoSending = false;
 let cycleTimeoutId = null;
 const STAKE_BALANCE_OFFSET_KES = 10;
+const LIVE_WALLET_REFRESH_MS = 1000;
 const stakeInputEl = document.getElementById('stake1');
 const liveBalanceValueEl = document.getElementById('liveBalanceValue');
 const liveBalanceUpdatedEl = document.getElementById('liveBalanceUpdated');
+let liveWalletRefreshIntervalId = null;
 
 function toFiniteAmount(value) {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -58,6 +60,10 @@ function requestWalletRefresh(reason = 'sidepanel-manual') {
   });
 }
 
+function isPanelVisible() {
+  return document.visibilityState === 'visible';
+}
+
 function syncStakeFromStoredWallet() {
   chrome.storage.local.get(['lastWalletBalance', 'lastWalletStatusTimestamp'], (result) => {
     const applied = applyStakeFromBalance(result.lastWalletBalance, result.lastWalletStatusTimestamp);
@@ -66,6 +72,25 @@ function syncStakeFromStoredWallet() {
     }
   });
 }
+
+function startLiveWalletRefresh() {
+  if (liveWalletRefreshIntervalId) {
+    clearInterval(liveWalletRefreshIntervalId);
+    liveWalletRefreshIntervalId = null;
+  }
+
+  requestWalletRefresh('sidepanel-live-start');
+  liveWalletRefreshIntervalId = setInterval(() => {
+    if (!isPanelVisible()) return;
+    requestWalletRefresh('sidepanel-live');
+  }, LIVE_WALLET_REFRESH_MS);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (isPanelVisible()) {
+    requestWalletRefresh('sidepanel-visible');
+  }
+});
 
 // Function to add message to bet status box
 function addBetStatusMessage(message, type = 'info') {
@@ -722,10 +747,9 @@ function loadCookies() {
 // Load cookies on startup
 loadCookies();
 
-// Wallet sync on startup + periodic refresh every 5 minutes.
+// Wallet sync on startup + continuous live refresh (every second).
 syncStakeFromStoredWallet();
-requestWalletRefresh('sidepanel-startup');
-setInterval(() => requestWalletRefresh('sidepanel-interval-5m'), 300000);
+startLiveWalletRefresh();
 
 // Manual cookie capture button
 document.getElementById('captureCookiesBtn').addEventListener('click', async () => {
